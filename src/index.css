@@ -1,0 +1,174 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 50% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 201 94% 56%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 201 94% 56%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 201 94% 56%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 32% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 32% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 201 94% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Safari-like smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-medical/30 rounded-full transition-colors;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-medical/50;
+  }
+}
+
+@layer components {
+  .shimmer-text {
+    @apply bg-gradient-to-r from-transparent via-medical to-transparent bg-[length:200%_100%] animate-text-shimmer bg-clip-text text-transparent;
+  }
+  
+  .glass-card {
+    @apply bg-white/70 dark:bg-black/40 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-lg;
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .text-safari {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  .button-safari {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .colorful-bg {
+    @apply relative;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  }
+  
+  .dark .colorful-bg {
+    background: linear-gradient(135deg, #1A1F2C 0%, #2e3d6d 100%);
+  }
+  
+  .colorful-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 80%;
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(41, 182, 246, 0.2) 0%, transparent 40%), 
+      radial-gradient(circle at 80% 20%, rgba(255, 138, 101, 0.2) 0%, transparent 30%);
+    z-index: 0;
+  }
+  
+  .dark .colorful-bg::before {
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(41, 182, 246, 0.15) 0%, transparent 40%), 
+      radial-gradient(circle at 80% 20%, rgba(255, 138, 101, 0.15) 0%, transparent 30%);
+  }
+
+  /* Medicare page special styling */
+  .medicare-bg {
+    background: linear-gradient(135deg, #e0f7fa 0%, #bbdefb 50%, #d1c4e9 100%);
+  }
+  
+  .dark .medicare-bg {
+    background: linear-gradient(135deg, #0d47a1 0%, #1a237e 50%, #311b92 100%);
+    opacity: 0.8;
+  }
+  
+  /* Enhanced styling for the navigation on Medicare page */
+  .medicare-page .sticky-nav {
+    @apply bg-white/90 backdrop-blur-md shadow-md;
+  }
+  
+  /* Enhanced text visibility for support text */
+  .enhanced-visibility-text {
+    @apply font-medium text-white text-shadow-sm bg-black/30 px-3 py-1 rounded-md backdrop-blur-sm border border-white/10;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
