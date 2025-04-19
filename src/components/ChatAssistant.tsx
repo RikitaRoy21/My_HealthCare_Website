@@ -1,34 +1,61 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, Send, ChevronUp, Sparkles } from 'lucide-react';
+import { Bot, X, Send, ChevronUp, Sparkles, Mic, LanguagesIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { healthKnowledgeBase } from '@/lib/healthKnowledgeBase';
 import { useToast } from '@/components/ui/use-toast';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
+// Supported languages with numerical options
+const SUPPORTED_LANGUAGES = [
+  { id: 'english', name: 'Option 1: English' },
+  { id: 'bengali', name: 'Option 2: Bengali' },
+  { id: 'hindi', name: 'Option 3: Hindi' }
+];
+
 const ChatAssistant = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hi! I'm your Medi Nova AI assistant powered by OpenAI. How can I help you with your health concerns today?" }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingText, setTypingText] = useState("");
   const [fullResponse, setFullResponse] = useState("");
-  const [typingSpeed, setTypingSpeed] = useState(20); // slightly faster typing
+  const [typingSpeed, setTypingSpeed] = useState(20);
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isLanguageSelectionComplete, setIsLanguageSelectionComplete] = useState(false);
+  const [isVoiceInputRequired, setIsVoiceInputRequired] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // Initialize chat with language selection prompt when opened
+  useEffect(() => {
+    if (isChatOpen && messages.length === 0) {
+      setMessages([
+        { 
+          role: 'assistant', 
+          content: "Welcome to Medi Nova! Please choose the language you are comfortable with:" 
+        }
+      ]);
+    }
+  }, [isChatOpen, messages.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,7 +68,6 @@ const ChatAssistant = () => {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (chatRef.current && !chatRef.current.contains(event.target as Node)) {
-        // Don't close, just minimize
         if (isChatOpen && !isMinimized) {
           setIsMinimized(true);
         }
@@ -70,180 +96,221 @@ const ChatAssistant = () => {
         setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: fullResponse }]);
         setFullResponse("");
         setTypingText("");
+        
+        // If language is selected but voice input hasn't been requested yet, prompt for voice input
+        if (isLanguageSelectionComplete && !isVoiceInputRequired) {
+          promptForVoiceInput();
+        }
       }
     }, typingSpeed);
     
     return () => clearInterval(typingInterval);
-  }, [isTyping, fullResponse, typingSpeed]);
+  }, [isTyping, fullResponse, typingSpeed, isLanguageSelectionComplete, isVoiceInputRequired]);
 
-  // Enhanced AI response generation with more OpenAI-like responses
-  const generateResponse = (userQuery: string) => {
-    // Check for health-related keywords
-    const query = userQuery.toLowerCase();
+  // Function to handle language selection
+  const handleLanguageSelection = (language: string) => {
+    setSelectedLanguage(language);
+    setIsLanguageSelectionComplete(true);
     
-    // Start with a greeting and acknowledgment
-    let responseStart = "I understand you're asking about ";
+    // Get the selected language display name
+    const selectedLangObj = SUPPORTED_LANGUAGES.find(lang => lang.id === language);
+    const displayName = selectedLangObj ? selectedLangObj.name : language;
     
-    // Analysis based on categories (OpenAI-style approach)
-    if (query.includes("symptom") || query.includes("feel") || query.includes("pain") || query.includes("hurt")) {
-      // Symptom checker response style
-      return `${responseStart}symptoms you're experiencing. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis. 
+    // Add user message showing language selection
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: `${displayName}` 
+    }]);
 
-Based on current medical knowledge, various symptoms can indicate different conditions. Could you tell me more about what you're experiencing, including when it started and any other symptoms you may have?`;
+    // Generate appropriate response in selected language
+    let response = "";
+    
+    switch(language) {
+      case 'hindi':
+        response = "आपने हिंदी भाषा चुनी है। कृपया अपना प्रश्न पूछने के लिए वॉयस नोट रिकॉर्ड करें।";
+        break;
+      case 'bengali':
+        response = "আপনি বাংলা ভাষা বেছে নিয়েছেন। আপনার প্রশ্ন জিজ্ঞাসা করতে একটি ভয়েস নোট রেকর্ড করুন।";
+        break;
+      default:
+        response = "You've selected English. Please record a voice note to ask your question.";
+    }
+    
+    // Add assistant response with voice prompt
+    setMessages(prev => [...prev, { 
+      role: 'assistant', 
+      content: '' 
+    }]);
+    
+    setFullResponse(response);
+    setIsTyping(true);
+    setIsVoiceInputRequired(true);
+  };
+
+  // Function to prompt for voice input
+  const promptForVoiceInput = () => {
+    // This will be called after the language selection message is typed out
+    setIsVoiceInputRequired(true);
+  };
+
+  // Function to start voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const audioChunks: BlobPart[] = [];
+      
+      recorder.addEventListener('dataavailable', event => {
+        audioChunks.push(event.data);
+      });
+      
+      recorder.addEventListener('stop', () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        setAudioBlob(audioBlob);
+        processVoiceInput(audioBlob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      });
+      
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+      
+      // Show recording toast in appropriate language
+      let toastMessage = "Recording started. Speak your health question now";
+      if (selectedLanguage === 'hindi') {
+        toastMessage = "रिकॉर्डिंग शुरू हुई। अपना स्वास्थ्य प्रश्न बोलें";
+      } else if (selectedLanguage === 'bengali') {
+        toastMessage = "রেকর্ডিং শুরু হয়েছে। আপনার স্বাস্থ্য সম্পর্কিত প্রশ্ন বলুন";
+      }
+      
+      toast({
+        title: toastMessage
+      });
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      
+      // Error message in appropriate language
+      let errorMessage = "Please allow microphone access to use voice features";
+      if (selectedLanguage === 'hindi') {
+        errorMessage = "वॉयस सुविधाओं का उपयोग करने के लिए कृपया माइक्रोफ़ोन एक्सेस की अनुमति दें";
+      } else if (selectedLanguage === 'bengali') {
+        errorMessage = "ভয়েস ফিচার ব্যবহার করতে মাইক্রোফোন অ্যাক্সেস অনুমতি দিন";
+      }
+      
+      toast({
+        variant: "destructive",
+        title: "Microphone access denied",
+        description: errorMessage
+      });
+    }
+  };
+
+  // Function to stop voice recording
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      
+      // Show processing toast in appropriate language
+      let toastMessage = "Processing your question...";
+      if (selectedLanguage === 'hindi') {
+        toastMessage = "आपके प्रश्न को प्रोसेस किया जा रहा है...";
+      } else if (selectedLanguage === 'bengali') {
+        toastMessage = "আপনার প্রশ্ন প্রক্রিয়া করা হচ্ছে...";
+      }
+      
+      toast({
+        title: "Recording stopped",
+        description: toastMessage
+      });
+    }
+  };
+
+  // Function to process voice input (simulate speech-to-text)
+  const processVoiceInput = async (blob: Blob) => {
+    setIsLoading(true);
+    
+    // Simulate a voice transcription process
+    setTimeout(() => {
+      // Simulate transcribed text based on selected language
+      let transcribedText = "";
+      
+      switch(selectedLanguage) {
+        case 'hindi':
+          transcribedText = "मुझे सिरदर्द हो रहा है, क्या मुझे कोई दवा लेनी चाहिए?";
+          break;
+        case 'bengali':
+          transcribedText = "আমার মাথা ব্যথা করছে, আমি কি কোন ওষুধ খাব?";
+          break;
+        default:
+          transcribedText = "I have a headache, should I take any medication?";
+      }
+      
+      // Add transcribed voice input as user message
+      setMessages(prev => [...prev, { 
+        role: 'user', 
+        content: transcribedText 
+      }]);
+      
+      // Generate response to the voice input
+      const response = generateLocalizedResponse(transcribedText);
+      
+      setIsLoading(false);
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      setFullResponse(response);
+      setIsTyping(true);
+      setIsVoiceInputRequired(false); // Reset for next question
+    }, 2000);
+  };
+
+  // Enhanced AI response generation with language localization
+  const generateLocalizedResponse = (userQuery: string) => {
+    // Basic responses in different languages
+    if (selectedLanguage === 'hindi') {
+      return `आपके प्रश्न "${userQuery}" के लिए धन्यवाद।
+
+सिरदर्द एक आम समस्या है और इसके कई कारण हो सकते हैं जैसे तनाव, थकान, नींद की कमी, या डिहाइड्रेशन।
+
+कुछ सुझाव:
+• पर्याप्त पानी पीएं
+• थोड़ी देर आराम करें
+• यदि आवश्यक हो तो पेरासिटामॉल या आइबुप्रोफेन जैसी दर्द निवारक दवा लें
+• यदि सिरदर्द गंभीर है या बार-बार होता है, तो डॉक्टर से परामर्श करें
+
+क्या आपके पास इस बारे में कोई अन्य प्रश्न है?`;
     } 
-    else if (query.includes("appointment") || query.includes("schedule") || query.includes("book")) {
-      return `${responseStart}booking an appointment at Medi Nova. 
+    else if (selectedLanguage === 'bengali') {
+      return `আপনার প্রশ্ন "${userQuery}" এর জন্য ধন্যবাদ।
 
-You have several options:
-1. Use our online booking system through the Medi Nova app
-2. Call our appointment line at (555) 123-4567
-3. Visit the reception desk in person
+মাথাব্যথা একটি সাধারণ সমস্যা এবং এর বিভিন্ন কারণ থাকতে পারে যেমন স্ট্রেস, ক্লান্তি, ঘুমের অভাব বা ডিহাইড্রেশন।
 
-What type of appointment are you looking to schedule? We have general practitioners as well as specialists in various fields.`;
+কিছু পরামর্শ:
+• প্রচুর পানি পান করুন
+• কিছুক্ষণ বিশ্রাম নিন
+• প্রয়োজনে প্যারাসিটামল বা আইবুপ্রোফেন জাতীয় ব্যথানাশক ওষুধ খান
+• যদি মাথাব্যথা তীব্র হয় বা বারবার হয়, তাহলে ডাক্তারের পরামর্শ নিন
+
+এই বিষয়ে আপনার আরও কোন প্রশ্ন আছে?`;
     } 
-    else if (query.includes("doctor") || query.includes("specialist") || query.includes("physician")) {
-      return `${responseStart}finding the right medical professional for your needs.
-
-Medi Nova has an extensive team of healthcare providers across various specialties:
-• General practitioners for routine care
-• Cardiologists for heart-related concerns
-• Neurologists for brain and nervous system issues
-• Orthopedists for bone and joint problems
-• Pediatricians for children's healthcare
-• And many more specialists
-
-What specific medical concern are you seeking help with? This will help me recommend the most appropriate specialist.`;
-    } 
-    else if (query.includes("emergency") || query.includes("urgent")) {
-      return `It seems you're inquiring about emergency services. If you're experiencing a life-threatening emergency, please call 911 immediately.
-
-For urgent but non-life-threatening conditions, Medi Nova offers:
-• 24/7 urgent care at our main facility (123 Main Street)
-• Virtual urgent care consultations through our app
-• Current emergency department wait time: approximately 15 minutes
-
-Can I provide more specific information about our emergency services?`;
-    }
-    else if (query.includes("medication") || query.includes("prescription") || query.includes("drug") || query.includes("medicine")) {
-      return `${responseStart}medications and prescriptions.
-
-Important information regarding medications at Medi Nova:
-• For prescription refills, please contact our pharmacy at (555) 987-6543
-• Our pharmacy is open 7am-10pm daily
-• We offer medication delivery for seniors and those with mobility challenges
-• Our pharmacists are available for medication consultations
-
-Would you like information about a specific medication or our prescription services?`;
-    }
-    else if (query.includes("insurance") || query.includes("cover") || query.includes("payment") || query.includes("cost")) {
-      return `${responseStart}insurance coverage and payment options.
-
-Medi Nova accepts most major insurance plans including:
-• BlueCross BlueShield
-• Aetna
-• Cigna
-• Medicare and Medicaid
-• United Healthcare
-
-We also offer flexible payment plans and financial assistance programs for qualifying patients. Would you like to speak with one of our financial counselors for more detailed information about your specific coverage?`;
-    }
-    else if (query.includes("test") || query.includes("lab") || query.includes("result") || query.includes("scan")) {
-      return `${responseStart}medical tests or lab results.
-
-At Medi Nova, we offer comprehensive diagnostic services:
-• Most lab results are available within 24-48 hours
-• Test results can be accessed through your secure patient portal
-• Our lab is open Monday-Friday 7am-7pm and Saturday 8am-2pm
-• For urgent results, please contact your provider directly
-
-If you've recently had testing done, I can guide you on how to access your results or connect you with our lab department.`;
-    }
-    else if (query.includes("diet") || query.includes("nutrition") || query.includes("eat") || query.includes("food")) {
-      return `${responseStart}nutrition and dietary recommendations.
-
-Proper nutrition is a cornerstone of good health. Based on current medical consensus:
-• A balanced diet typically includes fruits, vegetables, whole grains, lean proteins, and healthy fats
-• Nutritional needs vary based on age, sex, activity level, and medical conditions
-• Medi Nova offers personalized nutrition consultations with registered dietitians
-
-Would you like general dietary guidelines or information about scheduling a consultation with one of our nutrition specialists?`;
-    }
-    else if (query.includes("exercise") || query.includes("workout") || query.includes("fitness") || query.includes("active")) {
-      return `${responseStart}physical activity and exercise recommendations.
-
-Current health guidelines suggest:
-• Adults should aim for at least 150 minutes of moderate-intensity aerobic activity weekly
-• Strength training activities should be included at least twice per week
-• Even small amounts of physical activity provide health benefits
-• Exercise programs should be tailored to individual health conditions and fitness levels
-
-Medi Nova offers physical therapy and exercise physiology services to help design safe, effective exercise programs. What are your specific fitness goals?`;
-    }
-    else if (query.includes("stress") || query.includes("anxiety") || query.includes("depress") || query.includes("mental")) {
-      return `${responseStart}mental health concerns, which are just as important as physical health.
-
-Medi Nova provides comprehensive mental health services:
-• Individual therapy with licensed psychologists and counselors
-• Psychiatric care and medication management
-• Group therapy and support groups
-• Crisis intervention services
-
-Everyone experiences mental health challenges differently. Would you like information about specific mental health resources or services?`;
-    }
-    else if (query.includes("covid") || query.includes("vaccine") || query.includes("vaccination") || query.includes("shot")) {
-      return `${responseStart}COVID-19 information or vaccinations.
-
-Current COVID-19 information at Medi Nova:
-• We offer testing (PCR and rapid) at all locations
-• Vaccinations are available without appointment
-• Boosters are recommended according to CDC guidelines
-• Virtual consultations are available for COVID-related concerns
-
-Our COVID protocols are regularly updated based on the latest scientific evidence and public health guidelines. How can I help you specifically with COVID-related services?`;
-    }
-    else if (query.includes("prevention") || query.includes("wellness") || query.includes("checkup") || query.includes("screening")) {
-      return `${responseStart}preventive care and wellness.
-
-Preventive healthcare at Medi Nova focuses on:
-• Regular health screenings based on age, sex, and risk factors
-• Immunizations following recommended schedules
-• Lifestyle counseling for nutrition, exercise, and stress management
-• Early detection through appropriate diagnostic testing
-
-Preventive care is often covered by insurance with little or no out-of-pocket cost. Would you like information about specific screening recommendations based on your demographic profile?`;
-    }
-    else if (query.includes("hello") || query.includes("hi") || query.includes("hey")) {
-      return `Hello! I'm your Medi Nova AI health assistant, powered by advanced technology similar to ChatGPT. I'm here to provide information and assistance with your health-related questions.
-
-I can help with:
-• Understanding medical conditions and symptoms
-• Navigating Medi Nova services
-• Finding the right healthcare provider
-• Preventive health recommendations
-• And much more
-
-How can I assist you with your healthcare needs today?`;
-    }
-    else if (query.includes("thank") || query.includes("thanks")) {
-      return `You're welcome! I'm happy to help with your healthcare questions and needs. If you have any other questions about Medi Nova services or health information, please don't hesitate to ask.
-
-Your health and wellbeing are our top priorities. Is there anything else I can assist you with today?`;
-    }
-    else if (query.includes("bye") || query.includes("goodbye")) {
-      return `Thank you for chatting with me today. If you need any further assistance with your healthcare needs, I'll be here 24/7.
-
-Take care and stay healthy! Remember that Medi Nova is always available for your healthcare needs.`;
-    }
     else {
-      // General health inquiry with OpenAI-style comprehensive response
-      return `Thank you for your question. 
+      return `Thank you for your question: "${userQuery}"
 
-While I don't have specific information about "${userQuery}", I'd be happy to provide general guidance based on medical knowledge.
+Headaches are a common issue and can have various causes like stress, fatigue, lack of sleep, or dehydration.
 
-Medi Nova offers comprehensive healthcare services including preventive care, specialized treatments, diagnostic testing, and emergency services. Our team of medical professionals is committed to providing personalized care tailored to your needs.
+Some suggestions:
+• Drink plenty of water
+• Rest for a while
+• Take pain relievers like paracetamol or ibuprofen if needed
+• If the headache is severe or recurring, consult a doctor
 
-Could you provide more specific details about your question so I can better assist you? I'm here to help with any health-related concerns you might have.`;
+Do you have any other questions about this?`;
     }
+  };
+
+  const generateResponse = (userQuery: string) => {
+    return generateLocalizedResponse(userQuery);
   };
 
   const handleSendMessage = async () => {
@@ -257,12 +324,10 @@ Could you provide more specific details about your question so I can better assi
     // Focus back on input after sending
     inputRef.current?.focus();
 
-    // Simulate processing time for more natural interaction
     setTimeout(() => {
       const response = generateResponse(userMessage);
       setIsLoading(false);
       
-      // Add a temporary message that will be replaced by the typing animation
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
       setFullResponse(response);
       setIsTyping(true);
@@ -282,6 +347,29 @@ Could you provide more specific details about your question so I can better assi
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
+  };
+
+  // Render language selection options with clearer numbering
+  const renderLanguageSelection = () => {
+    return (
+      <div className="p-4 flex flex-col space-y-4">
+        <p className="text-sm text-gray-800 mb-2">Please choose the language you are comfortable with:</p>
+        <RadioGroup 
+          value={selectedLanguage || ''} 
+          onValueChange={handleLanguageSelection}
+          className="space-y-3"
+        >
+          {SUPPORTED_LANGUAGES.map(language => (
+            <div key={language.id} className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-md transition-colors">
+              <RadioGroupItem value={language.id} id={language.id} />
+              <Label htmlFor={language.id} className="cursor-pointer font-medium text-gray-900">
+                {language.name}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+    );
   };
 
   return (
@@ -311,7 +399,7 @@ Could you provide more specific details about your question so I can better assi
                 </Avatar>
                 <div className="flex flex-col">
                   <span className="font-medium">Medi Nova AI</span>
-                  <span className="text-xs text-white/70 flex items-center">
+                  <span className="text-xs text-white/90 flex items-center">
                     <Sparkles className="w-3 h-3 mr-1" />
                     Powered by OpenAI
                   </span>
@@ -373,7 +461,6 @@ Could you provide more specific details about your question so I can better assi
                           }`}
                         >
                           <p className="whitespace-pre-line">{
-                            // If this is the last message and we're typing, show the typing text
                             isTyping && index === messages.length - 1 ? typingText : message.content
                           }</p>
                         </motion.div>
@@ -415,28 +502,46 @@ Could you provide more specific details about your question so I can better assi
                 </div>
 
                 <div className="p-3 border-t bg-white">
-                  <div className="relative rounded-full overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400">
-                    <textarea
-                      ref={inputRef}
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyDown={handleKeyPress}
-                      placeholder="Ask any health question..."
-                      className="w-full px-4 py-2 pr-12 text-sm max-h-20 resize-none focus:outline-none text-gray-900 font-medium"
-                      rows={1}
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      disabled={!inputMessage.trim() || isLoading || isTyping}
-                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full transition-colors ${
-                        inputMessage.trim() && !isLoading && !isTyping
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-200 text-gray-500'
-                      }`}
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {!isLanguageSelectionComplete && renderLanguageSelection()}
+                  
+                  {isLanguageSelectionComplete && (
+                    <div className="flex items-center space-x-2">
+                      {isVoiceInputRequired && (
+                        <Button
+                          onClick={isRecording ? stopRecording : startRecording}
+                          className={cn(
+                            "rounded-full flex-shrink-0",
+                            isRecording ? "bg-red-500 hover:bg-red-600" : "bg-blue-600 hover:bg-blue-700"
+                          )}
+                        >
+                          <Mic className="w-5 h-5 mr-1" />
+                          {isRecording ? "Stop" : "Speak"}
+                        </Button>
+                      )}
+                      <div className="relative rounded-full overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-400 flex-grow">
+                        <textarea
+                          ref={inputRef}
+                          value={inputMessage}
+                          onChange={(e) => setInputMessage(e.target.value)}
+                          onKeyDown={handleKeyPress}
+                          placeholder={isVoiceInputRequired ? "Or type your question..." : "Ask any health question..."}
+                          className="w-full px-4 py-2 pr-12 text-sm max-h-20 resize-none focus:outline-none text-gray-900 font-medium"
+                          rows={1}
+                        />
+                        <button
+                          onClick={handleSendMessage}
+                          disabled={!inputMessage.trim() || isLoading || isTyping}
+                          className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full transition-colors ${
+                            inputMessage.trim() && !isLoading && !isTyping
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-gray-200 text-gray-500'
+                          }`}
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -454,14 +559,15 @@ Could you provide more specific details about your question so I can better assi
                 whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
                 whileTap={{ scale: 0.95 }}
                 onClick={openChat}
-                className="bg-primary text-primary-foreground p-4 rounded-full shadow-lg flex items-center gap-2"
+                className="bg-blue-600 text-white p-4 rounded-full shadow-lg flex items-center gap-2"
               >
                 <Bot className="w-6 h-6" />
-                <span className="hidden md:inline font-medium">AI Health Assistant</span>
+                <LanguagesIcon className="w-5 h-5" />
+                <span className="hidden md:inline font-medium">Multilingual Health Assistant</span>
               </motion.button>
             </TooltipTrigger>
             <TooltipContent side="left">
-              <p>Ask our AI health assistant</p>
+              <p className="text-gray-900">Ask our Multilingual AI health assistant</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
