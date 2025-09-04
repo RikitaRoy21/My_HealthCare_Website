@@ -17,6 +17,12 @@ const navLinks = [
   { name: 'Support For Them', path: '/support', icon: Users }
 ];
 
+
+const handleHelplineClick = () => {
+  window.dispatchEvent(new Event('openHelplineModal'));
+};
+
+
 const NavigationHeader = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,11 +44,10 @@ const NavigationHeader = () => {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled 
-          ? 'bg-background/90 backdrop-blur-xl shadow-md border-b border-white/10' 
-          : 'bg-gradient-to-b from-black/70 to-transparent backdrop-blur-sm'
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
+        ? 'bg-background/90 backdrop-blur-xl shadow-md border-b border-white/10'
+        : 'bg-gradient-to-b from-black/70 to-transparent backdrop-blur-sm'
+        }`}
     >
       <div className="container mx-auto px-6">
         <div className="flex items-center justify-between h-16 md:h-20">
@@ -53,10 +58,10 @@ const NavigationHeader = () => {
             >
               {/* Logo */}
               <div className="flex items-center">
-                <img 
-                  src="/lovable-uploads/bd581a3b-d5d7-4a97-a9f6-f1428048cecc.png" 
-                  alt="Medi Nova Logo" 
-                  className="h-12 mr-2" 
+                <img
+                  src="/lovable-uploads/bd581a3b-d5d7-4a97-a9f6-f1428048cecc.png"
+                  alt="Medi Nova Logo"
+                  className="h-12 mr-2"
                 />
               </div>
             </motion.div>
@@ -79,17 +84,17 @@ const NavigationHeader = () => {
                 </Link>
               </motion.div>
             ))}
-            
+
             {/* Profile Button */}
             <div className="ml-2">
               <ProfileButton />
             </div>
-            
+
             {/* Theme Toggle */}
             <motion.div className="ml-2">
               <ThemeToggle />
             </motion.div>
-            
+
             {/* Helpline Button - Changed from blue to primary color */}
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -97,12 +102,15 @@ const NavigationHeader = () => {
               className="ml-2"
               id="helpline-button"
             >
-              <Button className="bg-primary hover:bg-primary/90 flex items-center">
+              {/* <Button className="bg-primary hover:bg-primary/90 flex items-center">
                 <a href="tel:+1234567890" className="flex items-center">
                   <Phone className="w-4 h-4 mr-2" />
                   24/7 Helpline
                 </a>
-              </Button>
+              </Button> */}
+
+              <Button onClick={handleHelplineClick}>24/7 Helpline</Button>
+
             </motion.div>
           </nav>
 
@@ -157,12 +165,15 @@ const NavigationHeader = () => {
                 id="mobile-helpline-button"
               >
                 {/* Mobile helpline button - changed to primary color */}
-                <Button className="w-full bg-primary hover:bg-primary/90 flex items-center justify-center">
+                {/* <Button className="w-full bg-primary hover:bg-primary/90 flex items-center justify-center">
                   <a href="tel:+1234567890" className="flex items-center justify-center w-full">
                     <Phone className="w-4 h-4 mr-2" />
                     24/7 Helpline
                   </a>
-                </Button>
+                </Button> */}
+
+                <Button onClick={handleHelplineClick}>24/7 Helpline</Button>
+
               </motion.div>
             </div>
           </motion.div>
